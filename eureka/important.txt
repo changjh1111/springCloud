@@ -1,0 +1,32 @@
+1、JDK1.7
+	1\e.next = null
+	newTable[i] = e
+	e = next;    
+	2\ e.next = newTable[i]；// 有值的  *重要
+	newTable[i] = e // 重新赋值
+
+	JDK7是每拿到一个Node就直接插入到newTable，而JDK8是先插入到高低链表中，然后再一次性插入到newTable。
+	所以链表的扩容过程JDK7会出现死循环问题，而JDK8避免了这个问题。
+	JDK8跟原先的链表对比Node之间顺序是一致的，而JDK7是是反过来的
+
+	e.hash与老表容量进行与运算为0
+
+	单例 多线程 双重检查
+2019-09-16
+2、JDK8之后把-XX:PermSize 和 -XX:MaxPermGen移除了，取而代之的是 
+	-XX:MetaspaceSize=128m （元空间默认大小） 
+	-XX:MaxMetaspaceSize=128m （元空间最大大小）
+	这解决了空间不足的问题
+3、1.8同1.7比，最大的差别就是：元数据区取代了永久代
+	元数据空间并不在虚拟机中，而是使用本地内存。
+	
+	
+4、 2019-09-24
+DefaultListableBeanFactory 是第一个非抽象类，非接口类。实际IOC容器
+ xmlBeanDefinitionReader 加载资源转换Document,注册bean信息
+	EntityRelover 加载验证
+	 doRegisterBeanDefinitions(Element root) 核心方法
+	  设计空方法 （模板方法）
+	   属性封装到GenericBeanDefinition实体里
+	    BeanDefinition注册到BeanDefinitionRegistry (内存数据库)
+Bean加载
