@@ -1,0 +1,347 @@
+查询路径：
+https://my.oschina.net/u/3754001/blog/1802135
+https://www.cnblogs.com/shizhijie/p/9878078.html
+
+http://192.168.169.130:50070/dfshealth.html#tab-overview
+http://192.168.169.130:8088/cluster/apps
+
+1、主机角色分配
+	1>hadoop01 192.168.169.130
+		Zookeeper、NameNode、DFSZKFailoverController、ResourceManager。
+
+	2>hadoop02 192.168.169.132
+		Zookeeper、NameNode2、DFSZKFailoverController。
+	3>hadoop03 192.168.169.133
+		Zookeeper、DataNode、NodeManager、JournalNode
+2．关闭防火墙
+	service iptables status #查看防火墙状态
+	service iptables start #立即开启防火墙，但是重启后失效。
+	service iptables stop #立即关闭防火墙，但是重启后失效。
+
+	#重启后生效
+
+	chkconfig iptables on #开启防火墙，重启后生效。
+	chkconfig iptables off #关闭防火墙，重启后生效。
+3．配置主机名 ????
+    修改文件 /etc/sysconfig/network
+	vim /etc/sysconfig/network
+	source /etc/sysconfig/network
+	
+	NETWORKING=yes #yes启动网络no关闭网络
+	HOSTNAME=hadoop01 #主机名 
+	GATEWAY=192.168.1.1 #默认网关 这个文件的主要功能是设置主机名(HostName)及能否启动网络(Network) 更改了主机名后重启系统后才能生效。
+4．配置hosts
+    修改文件 /etc/hosts
+	vim /etc/hosts
+	127.0.0.1 hadoop01
+	其他主机和ip对应信息。。。
+5．配置免密登录
+	生成密钥：
+	ssh-keygen （一直enter）
+	
+	直接输入：cd /root/.ssh
+	ssh-copy-id root@hadoop01
+
+6．安装jdk（解压就在自己的路径下）
+	1>解压安装 ​​​​​​​tar -zxvf [jdk安装包位置]
+	2>配置环境变量 vim /etc/profile
+		export JAVA_HOME=/home/app/jdk1.7.0_45/
+		export PATH=$PATH:$JAVA_HOME/bin
+	3>重新加载 source /etc/profile
+		echo $JAVA_HOME
+		java -version
+二：zookeeper安装
+	1、cp zoo_sample.cfg zoo.cfg
+	2、zookeeper将数据保存在哪个目录下
+	3、	server.1=hadoop01:2888:3888
+		server.2=hadoop02:2888:3888
+		server.3=hadoop03:2888:3888
+	4、myid
+		vim myid
+		1
+	5、忘记关掉防火墙，也没看.out日志（systemctl stop firewalld.service）
+	
+三、配置hadoop
+
+2．修改配置(cd etc/hadoop/)
+	1>hadoop-env.sh
+		export JAVA_HOME=/usr/java/jdk1.8.0_221
+	2>core-site.xml
+		<configuration>
+		<!-- 指定hdfs的nameservice为ns -->
+		<property>
+		<name>fs.defaultFS</name>
+		<value>hdfs://ns</value>
+		</property>
+		<!--指定hadoop数据临时存放目录-->
+		<property>
+		<name>hadoop.tmp.dir</name>
+		<value>/hadoop/hadoop-3.1.2/tmp</value>
+		</property>
+		<!--指定hdfs操作数据的缓冲区大小 可以不配-->
+		<property>
+		<name>io.file.buffer.size</name>
+		<value>4096</value>
+		</property>
+		<!--指定zookeeper地址-->
+		<property>
+		<name>ha.zookeeper.quorum</name>
+		<value>hadoop01:2181,hadoop02:2181,hadoop03:2181</value>
+		</property>
+		</configuration>
+3>hdfs-site.xml
+	<configuration>
+	<!--指定hdfs的nameservice为ns，需要和core-site.xml中的保持一致 --> <property>
+	<name>dfs.nameservices</name>
+	<value>ns</value>
+	</property>
+	<!-- ns下面有两个NameNode，分别是nn1，nn2 -->
+	<property>
+	<name>dfs.ha.namenodes.ns</name>
+	<value>nn1,nn2</value>
+	</property>
+	<!-- nn1的RPC通信地址 -->
+	<property>
+	<name>dfs.namenode.rpc-address.ns.nn1</name>
+	<value>hadoop01:9000</value>
+	</property>
+	<!-- nn1的http通信地址 -->
+	<property>
+	<name>dfs.namenode.http-address.ns.nn1</name>
+	<value>hadoop01:50070</value>
+	</property>
+	<!-- nn2的RPC通信地址 -->
+	<property>
+	<name>dfs.namenode.rpc-address.ns.nn2</name>
+	<value>hadoop02:9000</value>
+	</property>
+	<!-- nn2的http通信地址 -->
+	<property>
+	<name>dfs.namenode.http-address.ns.nn2</name>
+	<value>hadoop02:50070</value>
+	</property>
+	<!-- 指定NameNode的元数据在JournalNode上的存放位置 -->
+	<property>
+	<name>dfs.namenode.shared.edits.dir</name>
+	<value>qjournal://hadoop03:8485/ns</value>
+	</property>
+	<!-- 指定JournalNode在本地磁盘存放数据的位置 -->
+	<property>
+	<name>dfs.journalnode.edits.dir</name>
+	<value>/hadoop/hadoop-3.1.2/tmp/journal</value>
+	</property>
+	<!-- 开启NameNode故障时自动切换 -->
+	<property>
+	<name>dfs.ha.automatic-failover.enabled</name>
+	<value>true</value>
+	</property>
+	<!-- 配置失败自动切换实现方式 -->
+	<property>
+	<name>dfs.client.failover.proxy.provider.ns</name>
+	<value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+	</property>
+	<!-- 配置隔离机制 -->
+	<property>
+	<name>dfs.ha.fencing.methods</name>
+	<value>sshfence</value>
+	</property>
+	<!-- 使用隔离机制时需要ssh免登陆 -->
+	<property>
+	<name>dfs.ha.fencing.ssh.private-key-files</name>
+	<value>/root/.ssh/id_rsa</value>
+	</property>
+	<!-- namenode存储位置 -->
+	<property>
+	<name>dfs.namenode.name.dir</name>
+	<value>/hadoop/hadoop-3.1.2/tmp/name</value>
+	</property>    
+	<!-- dataode存储位置 -->
+	<property>    
+	<name>dfs.datanode.data.dir</name>
+	<value>/hadoop/hadoop-3.1.2/tmp/data</value>
+	</property>
+	<!-- 副本数量根据自己的需求配置，这里配置2个 -->
+	<property>
+	<name>dfs.replication</name>
+	<value>1</value>
+	</property>
+	<!-- 在NN和DN上开启WebHDFS (REST API)功能,不是必须 -->
+	<property>
+	<name>dfs.webhdfs.enabled</name>
+	<value>true</value>
+	</property>
+	</configuration>
+4>mapred-site.xml
+	<configuration>
+	<property>
+	<name>mapreduce.framework.name</name>
+	<value>yarn</value>
+	</property>
+	</configuration>
+5>yarn-site.xml
+	<configuration>
+	<!-- 指定nodemanager启动时加载server的方式为shuffle server -->
+	<property>    
+	<name>yarn.nodemanager.aux-services</name>    
+	<value>mapreduce_shuffle</value>    
+	</property>  
+	<!-- 指定resourcemanager地址 -->
+	<property>
+	<name>yarn.resourcemanager.hostname</name>
+	<value>hadoop01</value>
+	</property>
+	
+	<property>
+        <name>yarn.application.classpath</name>
+        <value>/hadoop/hadoop-3.1.2/etc/hadoop:/hadoop/hadoop-3.1.2/share/hadoop/common/lib/*:/hadoop/hadoop-3.1.2/share/hadoop/common/*:/hadoop/hadoop-3.1.2/share/hadoop/hdfs:/hadoop/hadoop-3.1.2/share/hadoop/hdfs/lib/*:/hadoop/hadoop-3.1.2/share/hadoop/hdfs/*:/hadoop/hadoop-3.1.2/share/hadoop/mapreduce/lib/*:/hadoop/hadoop-3.1.2/share/hadoop/mapreduce/*:/hadoop/hadoop-3.1.2/share/hadoop/yarn:/hadoop/hadoop-3.1.2/share/hadoop/yarn/lib/*:/hadoop/hadoop-3.1.2/share/hadoop/yarn/*
+</value>
+    </property>
+
+	<property>
+<name>yarn.nodemanager.vmem-check-enabled</name>
+<value>false</value>
+</property>
+	</configuration>
+6>workers（3.1.2版本）
+	vim workers
+	
+	hadoop03
+三．环境变量
+	export HADOOP_HOME=/hadoop/hadoop-3.1.2
+export PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin
+
+测试hadoop ha:
+	1、连接zookeeper服务器 
+	./zkCli.sh -server localhost:2181
+	2、输入 ls /
+	3、关闭zookeeper close
+1、对于start-dfs.sh和stop-dfs.sh文件，添加下列参数：
+#!/usr/bin/env bash
+HDFS_DATANODE_USER=root
+HADOOP_SECURE_DN_USER=hdfs
+HDFS_NAMENODE_USER=root
+HDFS_SECONDARYNAMENODE_USER=root
+
+HDFS_DATANODE_USER=root 
+HDFS_DATANODE_SECURE_USER=hdfs #高版本
+HDFS_NAMENODE_USER=root 
+HDFS_SECONDARYNAMENODE_USER=root
+2、对于start-yarn.sh和stop-yarn.sh文件，添加下列参数：
+#!/usr/bin/env bash
+YARN_RESOURCEMANAGER_USER=root
+HADOOP_SECURE_DN_USER=yarn
+YARN_NODEMANAGER_USER=root
+
+报错：ERROR: Attempting to operate on yarn resourcemanager as root
+ERROR: but there is no YARN_RESOURCEMANAGER_USER defined. Aborting operation.（已经配置，但是写错字母）
+
+#查找hdfs目录
+hdfs dfs -ls /user/hadoop
+
+hadoop jar /hadoop/hadoop-3.1.2/share/hadoop/mapreduce/hadoop-mapreduce-examples-3.1.2.jar wordcount /user/hadoop/wordcount/file.txt /user/output
+
+hadoop jar hadoop-mapreduce-examples-3.1.2.jar wordcount /user/hadoop/wordcount/file.txt /user/output
+
+
+
+
+
+
+
+
+###### mapred-site.xml
+<configuration>
+ 
+    <property>
+ 
+<name>mapreduce.framework.name</name>
+ 
+<value>yarn</value>
+ 
+    </property>
+ 
+    <property>
+ 
+     <name>mapreduce.jobhistory.address</name>
+ 
+     <value>hadoop01:10020</value>
+ 
+    </property>
+ 
+    <property>
+ 
+     <name>mapreduce.jobhistory.webapp.address</name>
+ 
+     <value>hadoop01:19888</value>
+ 
+    </property>
+ 
+</configuration>
+
+
+在hadoop安装目录执行sbin/hadoop-daemon.sh start
+zkfc，这句是启动zookeeper选举制度
+
+
+hadoop启动命令顺序：
+ 启动完全分布式hadoop：
+
+1、启动zk集群 
+./zkServer.sh start
+2、启动jn集群
+sbin/hadoop-daemons.sh start journalnode
+1．格式化zkfc
+    第一次启动要格式化
+
+hdfs zkfc -formatZK
+2．格式化hdfs
+    第一次启动要格式化
+
+hadoop namenode -format
+3、启动NameNode
+在hadoop01上：
+
+hadoop-daemon.sh start namenode
+在hadoop02上：
+
+hdfs namenode -bootstrapStandby #把NameNode的数据同步到hadoop02上
+hadoop-daemon.sh start namenode #启动备用的namenode
+ 
+
+4、启动DataNode
+hadoop-daemons.sh start datanode
+5、启动yarn
+start-yarn.sh
+6、启动ZKFC
+    在hadoop01
+
+hadoop-daemon.sh start zkfc
+    在hadoop02
+
+hadoop-daemon.sh start zkfc
+ 
+
+
+
+重大问题：
+1、namenode active与standby不切换？
+2、执行 hadoop jar /hadoop/hadoop-3.1.2/share/hadoop/mapreduce/hadoop-mapreduce-examples-3.1.2.jar wordcount /input /output出错
+	配置yarn-site.xml文件
+	
+    <property>
+        <name>yarn.application.classpath</name>
+        <value>/hadoop/hadoop-3.1.2/etc/hadoop:/hadoop/hadoop-3.1.2/share/hadoop/common/lib/*:/hadoop/hadoop-3.1.2/share/hadoop/common/*:/hadoop/hadoop-3.1.2/share/hadoop/hdfs:/hadoop/hadoop-3.1.2/share/hadoop/hdfs/lib/*:/hadoop/hadoop-3.1.2/share/hadoop/hdfs/*:/hadoop/hadoop-3.1.2/share/hadoop/mapreduce/lib/*:/hadoop/hadoop-3.1.2/share/hadoop/mapreduce/*:/hadoop/hadoop-3.1.2/share/hadoop/yarn:/hadoop/hadoop-3.1.2/share/hadoop/yarn/lib/*:/hadoop/hadoop-3.1.2/share/hadoop/yarn/*
+</value>
+    </property>
+	mapreduce 测试用例不能执行
+	解决方法：
+	<property>
+<name>yarn.nodemanager.vmem-check-enabled</name>
+<value>false</value>
+</property>
+3、is running 449751552B beyond the 'VIRTUAL' memory limit. Current usage: 77.5 MB of 1 GB physical memory used; 2.5 GB of 2.1 GB virtual memory used. Killing container.
+解决方法：
+<property>
+<name>yarn.nodemanager.vmem-check-enabled</name>
+<value>false</value>
+</property>
