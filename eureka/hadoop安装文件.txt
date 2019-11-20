@@ -325,6 +325,7 @@ hadoop-daemon.sh start zkfc
 
 重大问题：
 1、namenode active与standby不切换？
+	解决方法：关闭防火墙 systemctl stop firewalld.service
 2、执行 hadoop jar /hadoop/hadoop-3.1.2/share/hadoop/mapreduce/hadoop-mapreduce-examples-3.1.2.jar wordcount /input /output出错
 	配置yarn-site.xml文件
 	
@@ -345,3 +346,18 @@ hadoop-daemon.sh start zkfc
 <name>yarn.nodemanager.vmem-check-enabled</name>
 <value>false</value>
 </property>
+
+
+
+
+知识点：
+关于mapreduce程序运行在yarn上时内存的分配一直是一个让我蒙圈的事情
+2019-11-19 如果启动不成功 把之前的生成的文件 data\name等文件夹删掉
+今天再次重启hadoop，忘记关闭防火墙
+
+测试hadoop是否安装成功 https://blog.csdn.net/RD_moon/article/details/80729142
+问题解决：https://blog.csdn.net/congcong68/article/details/42043093
+ 1、重新写了个 NativeIO类 覆盖以前的 
+ 2、替换了hadoop.3.1.2下的bin
+ 3、configurations 下 program arguments:hdfs://192.168.169.130:9000/input hdfs://192.168.169.130:9000/output1
+ 4、working director: D:\hadoop\hadoop-3.1.2（hadoop安装目录）
